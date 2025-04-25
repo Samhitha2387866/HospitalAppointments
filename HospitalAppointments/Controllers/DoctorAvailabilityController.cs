@@ -1,39 +1,25 @@
 ﻿using Hospital_Appointment_Management_System.Models;
-
 using Microsoft.AspNetCore.Authorization;
-
 using Microsoft.AspNetCore.Mvc;
-
 using Microsoft.EntityFrameworkCore;
-
+using NewHospitalManagementSystem.Models;
+using System;
 using System.Collections.Generic;
-
+using System.Globalization;
 using System.Linq;
-
-using System.Security.Claims;
-
 using System.Threading.Tasks;
 
 [ApiController]
-
 [Route("api/[controller]")]
-
-[Authorize]// Only doctors can access
-
 public class DoctorAvailabilityController : ControllerBase
-
 {
-
     private readonly ApplicationDBContext _context;
 
-
     public DoctorAvailabilityController(ApplicationDBContext context)
-
     {
-
         _context = context;
-
     }
+
 
     /// <summary>
 
@@ -42,6 +28,7 @@ public class DoctorAvailabilityController : ControllerBase
     /// </summary>
 
     [HttpPost("add")]
+    [AllowAnonymous]
 
     public async Task<IActionResult> AddDoctorAvailability([FromBody] DoctorAvailability availability)
 
@@ -71,8 +58,8 @@ public class DoctorAvailabilityController : ControllerBase
 
     /// </summary>
 
-    [Authorize(Roles = "Doctor")]
 
+    [AllowAnonymous]
     [HttpGet("all")]
 
     public async Task<ActionResult<IEnumerable<DoctorAvailability>>> GetDoctorAvailabilities()
@@ -90,6 +77,7 @@ public class DoctorAvailabilityController : ControllerBase
     /// </summary>
 
     [HttpGet("{doctorId}")]
+    [AllowAnonymous]
 
     public async Task<ActionResult<IEnumerable<DoctorAvailability>>> GetDoctorAvailability(int doctorId)
 
@@ -120,6 +108,7 @@ public class DoctorAvailabilityController : ControllerBase
     /// </summary>
 
     [HttpPut("update/{id}")]
+    [AllowAnonymous]
 
     public async Task<IActionResult> UpdateDoctorAvailability(int id, [FromBody] DoctorAvailability updatedAvailability)
 
@@ -156,6 +145,7 @@ public class DoctorAvailabilityController : ControllerBase
     /// </summary>
 
     [HttpDelete("delete/{id}")]
+    [AllowAnonymous]
 
     public async Task<IActionResult> DeleteDoctorAvailability(int id)
 
@@ -177,6 +167,78 @@ public class DoctorAvailabilityController : ControllerBase
 
         return Ok(new { Message = "Doctor availability deleted successfully." });
 
+    }
+    [HttpGet("doctor-details/{dateString}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<DoctorRegistration>>> GetDoctorDetailsByDate(string dateString)
+    {
+        if (!DateOnly.TryParseExact(dateString, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return BadRequest(new { Message = "Invalid date format. Please use dd-MM-yyyy." });
+
+        var doctorDetails = await (from da in _context.DoctorAvailabilities
+                                   join d in _context.Doctors on da.DoctorId equals d.DoctorId
+                                   where da.AvailableDate == date
+                                   select d)
+                                   .Distinct()
+                                   .ToListAsync();
+
+        if (!doctorDetails.Any())
+            return NotFound(new { Message = "No doctors available on this date." });
+
+        return Ok(doctorDetails.Select(d => new { d.DoctorId, d.DoctorName, d.Specialization }));
+
+        //return Ok(doctorDetails);
+    }
+
+    // 2. Get available slots for a doctor on a date (excluding booked slots)
+    [HttpGet("available-slots/{doctorId}/{dateString}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<object>>> GetAvailableTimeSlots(int doctorId, string dateString)
+    {
+        if (!DateOnly.TryParseExact(dateString, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return BadRequest(new { Message = "Invalid date format. Please use dd-MM-yyyy." });
+
+        var availabilities = await _context.DoctorAvailabilities
+            .Where(d => d.DoctorId == doctorId && d.AvailableDate == date)
+            .ToListAsync();
+
+        if (!availabilities.Any())
+            return NotFound(new { Message = "No availability found for this doctor on the specified date." });
+
+        // Get booked appointment times for this doctor and date
+        var bookedTimes = await _context.Appointment
+            .Where(a => a.DoctorId == doctorId && a.AppointmentDate == date)
+            .Select(a => a.AppointmentTime)
+            .ToListAsync();
+
+        // Generate available slots (30 min slots by default)
+        var availableSlots = new List<object>();
+        foreach (var availability in availabilities)
+        {
+            var slotStart = availability.StartTime;
+            while (slotStart < availability.EndTime)
+            {
+                var slotEnd = slotStart.Add(TimeSpan.FromMinutes(30));
+                if (slotEnd > availability.EndTime)
+                    break;
+
+                // If this slot is not booked, add to available slots
+                if (!bookedTimes.Contains(slotStart))
+                {
+                    availableSlots.Add(new
+                    {
+                        StartTime = slotStart.ToString(@"hh\:mm"),
+                        EndTime = slotEnd.ToString(@"hh\:mm")
+                    });
+                }
+                slotStart = slotEnd;
+            }
+        }
+
+        if (!availableSlots.Any())
+            return Ok(new { Message = "No available slots for this doctor on the specified date." });
+
+        return Ok(availableSlots);
     }
 
 }

@@ -61,7 +61,6 @@ namespace NewHospitalManagementSystem.Controllers
                 return StatusCode(500, $"An error occurred while saving the entity changes: {errorMessage}");
             }
         }
-
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateDoctor(int id, [FromBody] DoctorRegistration updatedDoctor)
         {
@@ -89,6 +88,7 @@ namespace NewHospitalManagementSystem.Controllers
                 return StatusCode(500, $"An error occurred while updating the entity changes: {errorMessage}");
             }
         }
+
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDoctor(int id)
