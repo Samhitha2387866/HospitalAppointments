@@ -1,16 +1,14 @@
-﻿using Hospital_Appointment_Management_System.Models;
-
-using NewHospitalManagementSystem.Models;
-
 using System.Collections.Generic;
-
 using System.Threading.Tasks;
+using NewHospitalManagementSystem.Models;
 
 public interface IAppointmentService
 {
     Task<Appointment> BookAppointment(AppointmentBookingDto bookingDto);
-    Task<IEnumerable<Appointment>> GetAppointmentsById();
+    Task<bool> CancelAppointment(int appointmentId);
     Task<IEnumerable<Appointment>> GetAppointments();
     Task<IEnumerable<Appointment>> GetAppointmentsByDoctorId(int doctorId);
-    Task<bool> CancelAppointment(int appointmentId);
+    Task<IEnumerable<Appointment>> GetAppointmentsByPatientId(int patientId);
+    Task<IEnumerable<Appointment>> GetAppointmentsById();
+    Task<bool> CancelAppointmentForPatient(int appointmentId, int patientId);
 }
